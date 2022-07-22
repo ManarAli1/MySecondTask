@@ -1,0 +1,256 @@
+//html:
+!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>RobotArmSimulation</title>
+
+	<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+	<script type="text/javascript" src='arm.js'></script>
+	<script type="text/javascript" src='iksystem.js'></script>
+	<script type="text/javascript" src='main.js'></script>
+</head>
+<body>
+	<h1 align='center'>3-Joint Robot Arm</h1>
+	<div class='container-fluid'>
+		<canvas id='cvs_task_space'></canvas>
+	</div>
+
+</body>
+<style type="text/css">
+	html, body {
+		margin: 0px;
+	}
+	canvas {
+		display: block;
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		height: 100%;
+		overflow: hidden;
+	}
+</style>
+</html>
+//------------------------------------------------------
+//arm:
+var Arm = Arm || {
+	x:0, 
+	y:0,
+	length: 100,
+	angle: 0,
+	parent: null,
+
+	create: function(x, y, length, angle) {
+		var obj = Object.create(this);
+		obj.init(x, y, length, angle);
+		return obj;
+	},
+
+	init: function(x, y, length, angle) {
+		this.x = x;
+		this.y = y;
+		this.length = length;
+		this.angle = angle;
+	},
+
+	getEndX: function() {
+		return this.x + Math.cos(this.angle) * this.length;
+	},
+
+	getEndY: function() {
+		return this.y + Math.sin(this.angle) * this.length;
+	},
+
+	render: function(context) {
+		// add arm
+		context.strokeStyle = "#000000";
+		context.lineWidth = 5;
+		context.beginPath();
+		context.moveTo(this.x, this.y);
+		context.lineTo(this.getEndX(), this.getEndY());
+		context.stroke();
+		// add joint circle
+		context.beginPath();
+		context.arc(this.getEndX(), this.getEndY(), 10, 0, 2*Math.PI);
+		context.stroke();
+	},
+
+	pointAt: function(x, y) {
+		var dx = x - this.x,
+			dy = y - this.y;
+		this.angle = Math.atan2(dy, dx);
+	},
+
+	drag: function(x, y) {
+		this.pointAt(x, y);
+		this.x = x - Math.cos(this.angle) * this.length;
+		this.y = y - Math.sin(this.angle) * this.length;
+		if (this.parent) {
+			this.parent.drag(this.x, this.y);
+		}
+	}
+}
+//------------------------------------------------------
+//iksystem:
+var IKSystem = IKSystem || {
+	x: 0,
+	y: 0,
+	arms: null,
+	lastArm: null,
+
+	create: function(x, y) {
+		// xy location of a base arm
+		var obj = Object.create(this);
+		obj.init(x, y);
+		return obj;
+	},
+
+	init: function(x, y) {
+		this.x = x;
+		this.y = y;
+		this.arms = [];
+	},
+
+	addArm: function(length) {
+		var arm = Arm.create(0, 0, length, 0);
+		if (this.lastArm) {
+			arm.x = this.lastArm.getEndX();
+			arm.y = this.lastArm.getEndY();
+			arm.parent = this.lastArm;
+		} else {
+			arm.x = this.x;
+			arm.y = this.y;
+		}
+		this.arms.push(arm);
+		this.lastArm = arm;
+	},
+
+	render: function(context) {
+		for(var i = 0; i < this.arms.length; i++) {
+			this.arms[i].render(context);
+		}
+	},
+
+	drag: function(x, y) {
+		this.lastArm.drag(x, y);
+	},
+
+	reach: function(x, y) {
+		this.drag(x, y);
+		this.update();
+	},
+
+	update: function() {
+		for(var i = 0; i < this.arms.length; i++) {
+			var arm = this.arms[i];
+			if(arm.parent) {
+				arm.x = arm.parent.getEndX();
+				arm.y = arm.parent.getEndY();
+			}
+			else {
+				arm.x = this.x;
+				arm.y = this.y;
+			}
+		}
+	},
+}
+//------------------------------------------------------
+//main:
+window.onload = function() {
+    // Define task space
+    var canvas = document.getElementById('cvs_task_space'),
+	context = canvas.getContext('2d'),
+	width = canvas.width = window.innerWidth,
+	height = canvas.height = window.innerHeight;
+
+    var mouseX = 0,
+	mouseY = 0;
+    var fixX = 0,
+        fixY = 0;
+    var isDraw = true;
+
+    // (1) Task space
+    var iks = IKSystem.create(width/2, height/2); // define arms
+    iks.addArm(100);  // bottom
+    iks.addArm(100);  // center
+    iks.addArm(100);  // top
+
+    // track mouse movement
+    canvas.addEventListener("mousemove", moveMouse);
+    // track touch movement
+    canvas.addEventListener('touchstart', moveTouch);
+    canvas.addEventListener('touchend', endTouch);
+    
+    // click to draw a red dot
+    canvas.addEventListener("click", drawDot);
+    canvas.addEventListener('touchstart', drawDot);
+
+    // update mouse position (desktop)
+    function moveMouse(e) {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+    }
+    // update mouse movement (ipad touch) 
+    function moveTouch(e) {
+        e.preventDefault();
+        mouseX = e.pageX;
+        mouseY = e.pageY;
+    }
+    function endTouch(e) {
+        e.preventDefault();
+        canvas.addEventListener('touchmove', moveTouch);
+    }
+
+    // draw dots
+    function drawDot(e) {
+        context.fillStyle = "#ff2626"; // Red color
+        context.beginPath();
+        fixX = e.clientX || e.pageX;
+        fixY = e.clientY || e.pageY; 
+        context.arc(fixX, fixY, 10, 0, Math.PI * 2, true);
+        context.fill();
+    }
+
+    // allow keypress to freeze
+    canvas.addEventListener('keypress', function() {
+        if (isDraw==true) {
+            isDraw = false;
+        } else {
+            isDraw = true;
+        }
+    });
+
+    update();
+
+    function update() {
+        if (isDraw) {
+            context.clearRect(0, 0, width, height);
+            drawCoordinates(fixX, fixY);
+
+            iks.reach(mouseX, mouseY); // drag arms
+            iks.render(context); // draw arms
+        }
+
+	requestAnimationFrame(update);
+    }
+
+    function drawCoordinates(x, y) {
+        context.fillStyle = "#ff2626"; // Red color
+        context.beginPath();
+        context.arc(x, y, 10, 0, Math.PI * 2, true);
+        context.fill();
+    }
+
+    function getPosition(event){
+        var rect = canvas.getBoundingClientRect();
+        var x = event.clientX - rect.left;
+        var y = event.clientY - rect.top;
+            
+        drawCoordinates(x,y);
+    }
+
+}
