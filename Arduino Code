@@ -1,0 +1,394 @@
+#include <Servo.h>
+#include <NewPing.h>
+
+//********** Declare and Initialize Servo variables **********************
+// array position 0 = BASE
+// array position 1 = SHOULDER
+// array position 2 = ELBOW
+// array position 3 = WRIST
+// array position 4 = GRIP
+//*************************************************************
+Servo Base,Shoulder,Elbow,Wrist,Grip;  // create servo objects to control a servo.
+const int NumberOfServos = 5; //Increment this for each additional servos. This will update all array sizes.
+
+Servo myservo[NumberOfServos] = {
+  Base, Shoulder,Elbow,Wrist,Grip}; //create array of servos.
+int Min[NumberOfServos] = {
+  0,20,0,0,48}; //create array of minimum degrees.
+int Max[NumberOfServos] = {
+  180,115,180,180,160}; //create array of maximum degrees.
+boolean ServoReady[NumberOfServos] = {
+  true,true,true,true,true}; //create array of servo ready.
+int CurrentServo=0; //Index of the current active servo.
+int CurrentPing, PreviousPing, PingTotal, CountTotal, Average;
+unsigned int uS;
+
+
+//********** Initialize No-Delay() variables **********************
+//*****************************************************************
+long previousMillis[NumberOfServos] = {
+  0,0,0,0,0};        // create array to store last time servo was started.
+// the follow variables are long because the time, measured in miliseconds,
+// will quickly become a bigger number than can be stored in an int.
+long interval[NumberOfServos] = {
+  1500,3000,1500,1500,1500};           //  //create array of intervals at which to wait in (milliseconds)
+unsigned long currentMillis = 0; // will store current/elapsed time.
+
+// ********** Initialize Electromagnet variables **********************
+//*********************************************************************
+int MagnetLEDPin = 13; //Indicate when magnet is on or off.
+int MagnetRelayPin = 12; //Pin number of magnet relay.
+int BasePin = 9;
+int ShoulderPin = 10;
+int ElbowPin = 11;
+int WristPin = 8;
+int GripPin = 7;
+int x = 0; //debug.
+int i;
+
+
+#define TRIGGER_PIN  2  // Arduino pin tied to trigger pin on the ultrasonic sensor.
+#define ECHO_PIN     3  // Arduino pin tied to echo pin on the ultrasonic sensor.
+#define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
+
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
+
+
+void setup()
+{
+  Base.attach(BasePin);          // attaches the BASE servo on pin 9 to the servo object.
+  Shoulder.attach(ShoulderPin);  // attaches the SHOULDER servo on pin 10 to the servo object.
+  Elbow.attach(ElbowPin);        // attaches the ELBOW servo on pin 10 to the servo object.
+  Wrist.attach(WristPin);        // attaches the WRIST servo on pin 10 to the servo object.
+  Grip.attach(GripPin);          // attaches the GRIP servo on pin 10 to the servo object.
+
+  pinMode(MagnetLEDPin, OUTPUT);
+  pinMode(MagnetRelayPin, OUTPUT);
+
+  PreviousPing = 20; //Debug.
+  PingTotal=0;
+  CountTotal=0;
+  Average=0;
+
+  Serial.begin(9600);
+
+  //********* Initialize Servo Location **************
+  Serial.println();
+  Serial.println("Initializing Servo Positions...");
+
+  Base.write(90); //Debug. Row 1 = 90 Row 2 = 90.
+  delay(1000);// Debug
+
+  Elbow.write(90); //Debug. row 1 = 90. Row 2 = 45.
+  delay(1000);// Debug.
+
+  Shoulder.write(65); //Debug.  Row 1 = 65. 65=straight up / Vertical. 30 = straightout / Horizontal.
+  delay(1000);// Debug.
+
+  Wrist.write(85); //Debug. Row 1 = 85. Row 2 = 65.
+  delay(1000);// Debug.
+
+  Grip.write(160); //Debug. Row 1 = 160. Close = 48; Max Open = 160.
+  delay(1000);// Debug.
+
+  Base.write(80); //Debug. Row 1 = 80.
+  delay(1000);// Debug
+
+  //*******************************************************
+
+
+} //End SETUP.
+
+
+void loop()
+{
+
+  /* start Code for Find Object and Drop Off...Forward Trip, Right to Left...
+  Shoulder.write(33); //Debug.  Row 1 = 33. 65=straight up / Vertical. 30 = straightout / Horizontal.
+  delay(1000);// Debug.
+
+  for(x = 70; x < 155; x += 4){
+    Base.write(x);
+    delay(2000);
+    uS = sonar.ping(); // Send ping, get ping time in microseconds (uS).
+    CurrentPing = uS / US_ROUNDTRIP_CM;
+    Serial.print("Current Ping...");
+    Serial.println(CurrentPing);
+    //*******************************************************************
+    // Code for error correction from erroneous ping values...
+    //********************************************************************
+    if( (CurrentPing != 0) && (CurrentPing < (1.5 * PreviousPing)) ) //Disregard a zero value and any value 1.5 times previous ping.
+    {
+      Serial.print("Ping: ");
+      Serial.print(uS / US_ROUNDTRIP_CM); // Convert ping time to distance in cm and print result (0 = outside set distance range)
+      Serial.println("cm");
+
+      PingTotal = PingTotal + CurrentPing;
+      ++CountTotal;
+      Average = PingTotal / CountTotal;
+      Serial.print("Average...");
+      Serial.println(Average);
+      if(CurrentPing <= (Average - (0.25 * CurrentPing) )) {   //If ping distance is 25% shorter than average distance then Box Found.
+        Serial.println("**************** FOUND BOX ***********************");
+        Base.write(x + 4);  // Move over to center of box.
+        Wrist.write(135);
+        delay(1000);
+        Shoulder.write(25);
+        delay(2000);
+        Grip.write(67);
+        delay(200);
+        Shoulder.write(65);
+        delay(2000);
+        Wrist.write(90);
+        delay(1000);
+
+
+        //(2) Drop off...
+        Serial.println("Drop off...");
+
+
+        Base.write(135); //Debug.
+        delay(1000);// Debug
+        Shoulder.write(34); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+        delay(3000);// Debug.
+        Grip.write(120); //Debug.
+        delay(1000);// Debug
+        Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+        delay(2000);// Debug.
+
+        Base.write(90); //Debug.
+        delay(1000);// Debug
+
+        Elbow.write(90); //Debug.
+        delay(1000);// Debug.
+
+        Wrist.write(90); //Debug.
+        delay(1000);// Debug.
+
+        Grip.write(120); //Debug. //Close = 48; Max Open = 160.
+        delay(1000);// Debug.
+
+
+        while(true);// Halt found box.
+
+      } // End IF.
+
+    }// End IF.
+
+  }// End FOR.
+
+
+
+//Return trip, Left to Right...
+  for(x = 155; x >= 70; x -= 4){
+    Base.write(x);
+    delay(2000);
+    uS = sonar.ping(); // Send ping, get ping time in microseconds (uS).
+    CurrentPing = uS / US_ROUNDTRIP_CM;
+    //*******************************************************************
+    // Code for error correction from erroneous ping values...
+    //********************************************************************
+    if( (CurrentPing != 0) && (CurrentPing < (1.5 * PreviousPing)) ) //Disregard a zero value and any value 1.5 times previous ping.
+    {
+      Serial.print("Ping: ");
+      Serial.print(uS / US_ROUNDTRIP_CM); // Convert ping time to distance in cm and print result (0 = outside set distance range)
+      Serial.println("cm");
+
+      PingTotal = PingTotal + CurrentPing;
+      ++CountTotal;
+      Average = PingTotal / CountTotal;
+      Serial.print("Average...");
+      Serial.println(Average);
+      if(CurrentPing <= (Average - (0.25 * CurrentPing) )) {   //If ping distance is 25% shorter than average distance then Box Found.
+        Serial.println("**************** FOUND BOX ***********************");
+        Base.write(x - 4);  // Move over to center of box.
+        Wrist.write(135);
+        delay(1000);
+        Shoulder.write(25);
+        delay(2000);
+        Grip.write(67);
+        delay(200);
+        Shoulder.write(65);
+        delay(2000);
+        Wrist.write(90);
+        delay(1000);
+
+
+        //(2) Drop off...
+        Serial.println("Drop off...");
+
+        Base.write(135); //Debug.
+        delay(1000);// Debug
+        Shoulder.write(34); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+        delay(3000);// Debug.
+        Grip.write(120); //Debug.
+        delay(1000);// Debug
+        Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+        delay(2000);// Debug.
+
+        Base.write(90); //Debug.
+        delay(1000);// Debug
+
+        Elbow.write(90); //Debug.
+        delay(1000);// Debug.
+
+        Wrist.write(90); //Debug.
+        delay(1000);// Debug.
+
+        Grip.write(120); //Debug. //Close = 48; Max Open = 160.
+        delay(1000);// Debug.
+
+
+        while(true);// Halt found box.
+
+      } //End IF.
+    }//End IF.
+  } //End FOR.
+
+  //   End Code for finding object on table...
+
+*/
+
+  // Pick and Place then Repeat code...
+
+   Serial.println(x); //Debug. Print Counter.
+   Serial.println("Pick up...");
+
+   //(1) Pick up...
+   Wrist.write(90); //Debug.
+   delay(1000);// Debug.
+   Base.write(90); //Debug.
+   delay(1000);// Debug
+   Shoulder.write(28); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(3000);// Debug.
+   Grip.write(67); //Debug.
+   delay(1000);// Debug.
+
+
+   Base.write(90); //Debug.
+   delay(1000);// Debug
+
+   Elbow.write(90); //Debug.
+   delay(1000);// Debug.
+
+   Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(2000);// Debug.
+
+   Wrist.write(90); //Debug.
+   delay(1000);// Debug.
+
+
+   Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(3000);// Debug.
+
+
+
+   //(2) Drop off...
+   Serial.println("Drop off...");
+
+   Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(3000);// Debug.
+   Base.write(135); //Debug.
+   delay(1000);// Debug
+   Shoulder.write(34); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(3000);// Debug.
+   Grip.write(120); //Debug.
+   delay(1000);// Debug
+   Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(2000);// Debug.
+
+   Base.write(90); //Debug.
+   delay(1000);// Debug
+
+   Elbow.write(90); //Debug.
+   delay(1000);// Debug.
+
+   Wrist.write(90); //Debug.
+   delay(1000);// Debug.
+
+   Grip.write(120); //Debug. //Close = 48; Max Open = 160.
+   delay(1000);// Debug.
+
+   //  Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   //  delay(3000);// Debug.
+
+
+   //(3) Pick up...
+
+   Serial.println("Pick up...");
+   //  Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   //  delay(3000);// Debug.
+   Base.write(135); //Debug.
+   delay(1000);// Debug
+   Shoulder.write(34); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(3000);// Debug.
+   Grip.write(67); //Debug.
+   delay(1000);// Debug.
+   Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(3000);// Debug.
+
+   Base.write(90); //Debug.
+   delay(1000);// Debug
+
+   Elbow.write(90); //Debug.
+   delay(1000);// Debug.
+
+   Wrist.write(90); //Debug.
+   delay(1000);// Debug.
+
+
+   //(4) Drop off..
+
+   Serial.println("Drop off..");
+   Wrist.write(90); //Debug.
+   delay(1000);// Debug.
+   Base.write(90); //Debug.
+   delay(1000);// Debug
+   Shoulder.write(28); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(3000);// Debug.
+   Grip.write(120); //Debug.
+   delay(1000);// Debug.
+
+
+   Shoulder.write(70); //Debug. 65=straight up / Vertical. 30 = straightout / Horizontal.
+   delay(2000);// Debug.
+
+   Base.write(90); //Debug.
+   delay(1000);// Debug
+
+   Elbow.write(90); //Debug.
+   delay(1000);// Debug.
+
+
+   Wrist.write(90); //Debug.
+   delay(1000);// Debug.
+
+   Grip.write(120); //Debug. //Close = 48; Max Open = 160.
+   delay(1000);// Debug.
+
+
+   x++; //Debug. Increment counter.
+
+//  End code for Pick and Place. */
+
+
+
+} //End LOOP.
+
+void CheckServo()
+{
+  currentMillis = millis();
+
+  if(currentMillis - previousMillis[CurrentServo] >= interval[CurrentServo])
+  {
+    Serial.print("Millis Count = ");
+    Serial.print(currentMillis - previousMillis[CurrentServo]);
+    Serial.println();
+    // save the last time you moved the servo.
+    previousMillis[CurrentServo] = currentMillis;
+
+    ServoReady[CurrentServo] = true;
+
+  } //End IF.
+
+} //End CheckServo.
