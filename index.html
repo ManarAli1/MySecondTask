@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1.0,maximum-scale=1.0,user-scalable=1">
+    <title>home</title>
+  </head>
+<style>
+  *,*:after,*:before{
+    -webkite-box-sizing:border-box;
+    -moz-box-sizing:border-box;
+    -ms-box-sizing:border-box;
+    box-sizing:border-box;
+  }
+  body{
+  font-family: arial;
+  font-size: 16px;
+  direction: ltr;
+  margin: 0;
+  background: linear-gradient(to right bottom,#d13cff,#031f6a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: #000;
+  }
+  .voice_to_text{
+    width: 600px;
+    text-align: center;
+  }
+  #convert_text{
+  width: 100%;
+  height: 300px;
+  border-radius: 10px;
+  resize: none;
+  padding: 10px;
+  font-size: 20px;
+  margin-bottom: 10px;
+  }
+  h1{
+  font-size: 50px;
+  color: #fff;
+  }
+  button{
+  direction: ltr;
+  padding: 12px 20px;
+  background: #0ea4da;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #fff;
+  }
+
+</style>
+  <body>
+    <div class="voice_to_text">
+      <h1>speech to text </h1>
+         <textarea id="convert_text"></textarea>
+         <button id="click_to_convert">Speech To Text</button>
+         <label dir="rtl" for="la">Choose a language</label>
+          <select name="la" id="la">
+            <option value="ar">Arabic</option>
+            <option value="eg">English</option>
+    </div>
+<script>click_to_convert.addEventListener('click',async function() {
+  // new speech recognition object
+  var speech = true;
+  window.SpeechRecognition = window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  // Set the properties for the Speech Recognition object
+  recognition.interimResults = true;
+  //language
+  recognition.lang="ar";
+  recognition.lang = document.getElementById("la").value;
+
+  // This runs when the speech recognition service returns result
+  recognition.addEventListener('result', e=>{
+    const transcript = Array.from(e.results)
+    .map(result =>result[0])
+    .map(result =>result.transcript)
+    convert_text.innerHTML = transcript;
+  })
+  // start recognition
+  if(speech == true){
+    recognition.start();
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 9600 });
+  }
+})
+async function connectSerial(){
+  try {
+    const textEncoder = new TextEncoderStream();
+
+    const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+
+    const writer = textEncoder.writable.getWriter();
+
+  } catch (e) {
+    alert('Serial port not found')
+
+  }
+}
+async function commandAnalayzer(script) {
+
+        console.log(script);
+
+        if (script.includes("يمين") || script.includes("right")) {
+
+            await writer.write("right");
+
+        }
+
+        else if (script.includes("يسار") || script.includes("left")) {
+
+            await writer.write("left");
+        }
+
+        writer.releaseLock();
+    }</script>
+  </body>
+</html>
